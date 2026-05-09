@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
+import os from 'os';
 
 const app = express();
 const httpServer = createServer(app);
@@ -13,7 +14,29 @@ const io = new SocketIOServer(httpServer, {
 });
 
 const PORT = process.env.PORT || 3000;
-const HOST = '0.0.0.0'; // Aceita conexões de qualquer interface de rede (LAN)
+const HOST = '0.0.0.0';
+
+function getLocalIPv4() {
+    const networkInterfaces = os.networkInterfaces();
+
+    for (const interfaceName in networkInterfaces) {
+        const networkInterface = networkInterfaces[interfaceName];
+
+        if (networkInterface) {
+            for (const net of networkInterface) {
+                if (net.family === 'IPv4' && !net.internal) {
+                    return net.address;
+                }
+            }
+        }
+    }
+
+    return 'IPv4 não encontrado';
+}
+
+// Exibe o IPv4 no console
+const localIPv4 = getLocalIPv4();
+console.log(`Endereço IPv4 local: ${localIPv4}`);
 
 // Middleware
 app.use(cors());
