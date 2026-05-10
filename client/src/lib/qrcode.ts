@@ -19,5 +19,5 @@ export async function generateQRCodeDataURL(text: string): Promise<string> {
 }
 
 export function getPlayerJoinURL(serverIP: string, serverPort: number): string {
-  return `http://${serverIP}:${serverPort}/join`;
+  return `http://${serverIP}:${serverPort}/player`;
 }
