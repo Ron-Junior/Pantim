@@ -2,6 +2,7 @@ import { Component, createSignal } from 'solid-js';
 import { io } from 'socket.io-client';
 import { getServerConfig } from '@/lib/server';
 import { UserProfile } from '@shared/types';
+import { showToast } from '@/components/Toast';
 
 interface JoinGamePayload {
   profile: UserProfile;
@@ -46,6 +47,8 @@ const PlayerLoginPage: Component = () => {
         playerName: name,
       };
       socket.emit('identify', payload);
+      setIsConnecting(false);
+      showToast('Conectado ao jogo!', 'success');
       console.log('Player joining game:', name);
     });
 

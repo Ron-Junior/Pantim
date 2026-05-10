@@ -2,6 +2,7 @@ import { Component, createSignal, onMount, Show } from 'solid-js';
 import { generateQRCodeDataURL, getPlayerJoinURL } from '@/lib/qrcode';
 import { getServerInfo } from '@/lib/server';
 import { io } from 'socket.io-client';
+import { showToast } from '@/components/Toast';
 
 const QRCodePage: Component = () => {
   const [qrCodeDataURL, setQRCodeDataURL] = createSignal<string>('');
@@ -31,6 +32,7 @@ const QRCodePage: Component = () => {
     socket.on('connect', () => {
       console.log('Host connected:', socket.id);
       socket.emit('identify', { profile: 'host' });
+      showToast('Servidor conectado!', 'success');
     });
 
     socket.on('playerJoined', (data: { socketId: string; profile: string }) => {
