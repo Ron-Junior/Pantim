@@ -451,6 +451,52 @@ io.on('connection', (socket: Socket) => {
     });
   });
 
+  // Evento: Get initial words
+  socket.on('getInitialWords', (data: { limit: number; offset: number }) => {
+    const limit = data?.limit || 20;
+    const offset = data?.offset || 0;
+    const paginatedWords = wordsData.words.slice(offset, offset + limit).map((w, i) => ({
+      id: `word-${offset + i}`,
+      text: w.word
+    }));
+    socket.emit('initialWords', {
+      words: paginatedWords,
+      hasMore: offset + limit < wordsData.words.length
+    });
+  });
+
+  // Evento: Request 5 suggestions
+  socket.on('requestSuggestions', (data: { count: number }) => {
+    const count = data?.count || 5;
+    const suggestions = getRandomWords(count).map((w, i) => ({
+      id: `suggestion-${i}`,
+      text: w.word
+    }));
+    socket.emit('wordSuggestions', suggestions);
+  });
+
+  // Evento: Search words
+  socket.on('searchWords', (data: { query: string; limit: number; offset: number }) => {
+    const query = (data?.query || '').toLowerCase().trim();
+    const limit = data?.limit || 20;
+    const offset = data?.offset || 0;
+    
+    const results = wordsData.words.filter(w => 
+      w.word.toLowerCase().includes(query) || 
+      w.meaning.toLowerCase().includes(query)
+    );
+    
+    const paginatedResults = results.slice(offset, offset + limit).map((w, i) => ({
+      id: `search-${offset + i}`,
+      text: w.word
+    }));
+    
+    socket.emit('wordSearchResults', {
+      words: paginatedResults,
+      hasMore: offset + limit < results.length
+    });
+  });
+
   // Evento: Desconexão
   socket.on('disconnect', () => {
     console.log(`[Desconexão] Cliente desconectado: ${socket.id}`);
