@@ -1,4 +1,3 @@
-const DEFAULT_HOST = import.meta.env.VITE_SERVER_HOST || 'http://localhost';
 const DEFAULT_PORT = import.meta.env.VITE_SERVER_PORT || '3000';
 
 interface ServerInfo {
@@ -8,7 +7,8 @@ interface ServerInfo {
 }
 
 export async function getServerInfo(): Promise<ServerInfo> {
-  const url = `${DEFAULT_HOST}:${DEFAULT_PORT}`;
+  const host = window.location.hostname;
+  const url = `http://${host}:${DEFAULT_PORT}`;
   
   try {
     const response = await fetch(`${url}/api/server-info`);
@@ -25,7 +25,7 @@ export async function getServerInfo(): Promise<ServerInfo> {
   }
 
   return {
-    ip: DEFAULT_HOST.replace('http://', '').replace('https://', ''),
+    ip: host,
     port: parseInt(DEFAULT_PORT, 10),
     timestamp: new Date().toISOString(),
   };
@@ -33,7 +33,7 @@ export async function getServerInfo(): Promise<ServerInfo> {
 
 export function getServerConfig() {
   return {
-    host: DEFAULT_HOST,
+    host: `http://${window.location.hostname}`,
     port: parseInt(DEFAULT_PORT, 10),
   };
 }
