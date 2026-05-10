@@ -47,6 +47,15 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Server info with dynamic IP
+app.get('/api/server-info', (req, res) => {
+  res.json({
+    ip: getLocalIPv4(),
+    port: PORT,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Socket.io eventos
 io.on('connection', (socket) => {
   console.log(`[Conexão] Novo cliente conectado: ${socket.id}`);

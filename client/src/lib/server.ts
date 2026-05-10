@@ -1,22 +1,39 @@
-const SERVER_HOST = import.meta.env.VITE_SERVER_HOST || 'http://localhost';
-const SERVER_PORT = import.meta.env.VITE_SERVER_PORT || '3000';
+const DEFAULT_HOST = import.meta.env.VITE_SERVER_HOST || 'http://localhost';
+const DEFAULT_PORT = import.meta.env.VITE_SERVER_PORT || '3000';
 
-export async function getServerIP(): Promise<string> {
+interface ServerInfo {
+  ip: string;
+  port: number;
+  timestamp: string;
+}
+
+export async function getServerInfo(): Promise<ServerInfo> {
+  const url = `${DEFAULT_HOST}:${DEFAULT_PORT}`;
+  
   try {
-    const response = await fetch(`${SERVER_HOST}:${SERVER_PORT}/health`);
-    if (!response.ok) {
-      throw new Error('Server not responding');
+    const response = await fetch(`${url}/api/server-info`);
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        ip: data.ip,
+        port: data.port,
+        timestamp: data.timestamp,
+      };
     }
-    return SERVER_HOST.replace('http://', '').replace('https://', '');
   } catch (error) {
-    console.error('Failed to get server IP:', error);
-    return 'localhost';
+    console.warn('Failed to get server info, using defaults:', error);
   }
+
+  return {
+    ip: DEFAULT_HOST.replace('http://', '').replace('https://', ''),
+    port: parseInt(DEFAULT_PORT, 10),
+    timestamp: new Date().toISOString(),
+  };
 }
 
 export function getServerConfig() {
   return {
-    host: SERVER_HOST,
-    port: parseInt(SERVER_PORT, 10),
+    host: DEFAULT_HOST,
+    port: parseInt(DEFAULT_PORT, 10),
   };
 }

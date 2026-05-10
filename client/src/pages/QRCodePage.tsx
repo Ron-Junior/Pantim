@@ -1,24 +1,23 @@
 import { Component, createSignal, onMount, Show } from 'solid-js';
 import { generateQRCodeDataURL, getPlayerJoinURL } from '@/lib/qrcode';
-import { getServerConfig } from '@/lib/server';
-import { io, Socket } from 'socket.io-client';
+import { getServerInfo } from '@/lib/server';
+import { io } from 'socket.io-client';
 
 const QRCodePage: Component = () => {
   const [qrCodeDataURL, setQRCodeDataURL] = createSignal<string>('');
   const [serverIP, setServerIP] = createSignal<string>('');
+  const [serverPort, setServerPort] = createSignal<number>(3000);
   const [isLoading, setIsLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [connectedPlayers, setConnectedPlayers] = createSignal<string[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let socket: Socket | null = null;
 
   onMount(async () => {
-    const config = getServerConfig();
-    const ip = config.host.replace('http://', '').replace('https://', '');
-    setServerIP(ip);
+    const serverInfo = await getServerInfo();
+    setServerIP(serverInfo.ip);
+    setServerPort(serverInfo.port);
 
     try {
-      const joinURL = getPlayerJoinURL(ip, config.port);
+      const joinURL = getPlayerJoinURL(serverInfo.ip, serverInfo.port);
       const dataURL = await generateQRCodeDataURL(joinURL);
       setQRCodeDataURL(dataURL);
       setIsLoading(false);
@@ -27,26 +26,24 @@ const QRCodePage: Component = () => {
       setIsLoading(false);
     }
 
-    const newSocket = io(`${config.host}:${config.port}`, {
+    const socket = io(`${window.location.protocol}//${serverInfo.ip}:${serverInfo.port}`, {
       transports: ['websocket', 'polling'],
     });
 
-    newSocket.on('connect', () => {
-      console.log('Host connected:', newSocket.id);
-      newSocket.emit('identify', { profile: 'host' });
+    socket.on('connect', () => {
+      console.log('Host connected:', socket.id);
+      socket.emit('identify', { profile: 'host' });
     });
 
-    newSocket.on('playerJoined', (data: { socketId: string; profile: string }) => {
+    socket.on('playerJoined', (data: { socketId: string; profile: string }) => {
       if (data.profile === 'player') {
         setConnectedPlayers((prev) => [...prev, data.socketId]);
       }
     });
 
-    newSocket.on('playerLeft', (data: { socketId: string }) => {
+    socket.on('playerLeft', (data: { socketId: string }) => {
       setConnectedPlayers((prev) => prev.filter((id) => id !== data.socketId));
     });
-
-    socket = newSocket;
   });
 
   return (
@@ -84,7 +81,7 @@ const QRCodePage: Component = () => {
 
       <div class="text-center">
         <p class="text-3xl font-mono text-accent-400 mb-2">
-          {serverIP()}:{getServerConfig().port}
+          {serverIP()}:{serverPort()}
         </p>
         <p class="text-slate-500 text-sm">
           {connectedPlayers().length} jogador(es) conectado(s)
