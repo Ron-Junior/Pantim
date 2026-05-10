@@ -1,4 +1,5 @@
 import { Component, createSignal } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { io } from 'socket.io-client';
 import { getServerConfig } from '@/lib/server';
 import { UserProfile } from '@shared/types';
@@ -10,6 +11,7 @@ interface JoinGamePayload {
 }
 
 const PlayerLoginPage: Component = () => {
+  const navigate = useNavigate();
   const [playerName, setPlayerName] = createSignal('');
   const [isConnecting, setIsConnecting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -47,9 +49,8 @@ const PlayerLoginPage: Component = () => {
         playerName: name,
       };
       socket.emit('identify', payload);
-      setIsConnecting(false);
       showToast('Conectado ao jogo!', 'success');
-      console.log('Player joining game:', name);
+      navigate(`/lobby?name=${encodeURIComponent(name)}`);
     });
 
     socket.on('connect_error', () => {

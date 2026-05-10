@@ -451,6 +451,88 @@ io.on('connection', (socket: Socket) => {
     });
   });
 
+  // Evento: Get initial words
+  socket.on('getInitialWords', (data: { limit: number; offset: number }) => {
+    const limit = data?.limit || 20;
+    const offset = data?.offset || 0;
+    const paginatedWords = wordsData.words.slice(offset, offset + limit).map((w, i) => ({
+      id: `word-${offset + i}`,
+      text: w.word,
+      meaning: w.meaning
+    }));
+    socket.emit('initialWords', {
+      words: paginatedWords,
+      hasMore: offset + limit < wordsData.words.length
+    });
+  });
+
+  // Evento: Get word meaning by text
+  socket.on('getWordMeaning', (data: { word: string }) => {
+    const word = wordsData.words.find(w => w.word === data.word);
+    if (word) {
+      socket.emit('wordMeaning', { word: word.word, meaning: word.meaning });
+    }
+  });
+
+  // Evento: Request 5 suggestions
+  socket.on('requestSuggestions', (data: { count: number }) => {
+    const count = data?.count || 5;
+    const suggestions = getRandomWords(count).map((w, i) => ({
+      id: `suggestion-${i}`,
+      text: w.word,
+      meaning: w.meaning
+    }));
+    socket.emit('wordSuggestions', suggestions);
+  });
+
+  // Evento: Search words
+  socket.on('searchWords', (data: { query: string; limit: number; offset: number }) => {
+    const query = (data?.query || '').toLowerCase().trim();
+    const limit = data?.limit || 20;
+    const offset = data?.offset || 0;
+    
+    const results = wordsData.words.filter(w => 
+      w.word.toLowerCase().includes(query) || 
+      w.meaning.toLowerCase().includes(query)
+    );
+    
+    const paginatedResults = results.slice(offset, offset + limit).map((w, i) => ({
+      id: `search-${offset + i}`,
+      text: w.word,
+      meaning: w.meaning
+    }));
+    
+    socket.emit('wordSearchResults', {
+      words: paginatedResults,
+      hasMore: offset + limit < results.length
+    });
+  });
+
+  // Evento: Iniciar jogo (host)
+  socket.on('startGame', () => {
+    const player = playersStore.get(socket.id);
+    if (player && player.profile === 'host') {
+      console.log(`[Jogo] Partida iniciada pelo host`);
+      io.emit('gameStarted', { timestamp: new Date().toISOString() });
+      io.to('player').emit('startLeaderSelection');
+    }
+  });
+
+  // Evento: Iniciar rodada (leader seleciona palavra)
+  socket.on('startRound', (data: { word: string; meaning: string }) => {
+    const player = playersStore.get(socket.id);
+    if (player) {
+      console.log(`[Jogo] Rodada iniciada com palavra: ${data.word}`);
+      io.emit('roundStarted', { 
+        word: data.word, 
+        meaning: data.meaning,
+        leaderId: socket.id,
+        leaderName: player.name,
+        timestamp: new Date().toISOString() 
+      });
+    }
+  });
+
   // Evento: Desconexão
   socket.on('disconnect', () => {
     console.log(`[Desconexão] Cliente desconectado: ${socket.id}`);
