@@ -48,3 +48,22 @@ export interface PlayerInfo {
   isConnected: boolean;
   joinedAt: Date;
 }
+
+export interface Player {
+  socketId: string;
+  name: string;
+  score: number;
+  profile: UserProfile;
+}
+
+export interface PlayersListEvent {
+  players: Player[];
+}
+
+export interface PlayerJoinedEventExtended extends PlayerJoinedEvent {
+  playerName: string;
+}
+
+export interface UpdateScorePayload {
+  score: number;
+}
