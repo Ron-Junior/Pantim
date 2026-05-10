@@ -153,11 +153,30 @@ app.get('/api/words', (req, res) => {
   });
 });
 
-// API: Ver estado do playersStore
+// API: Retorna todos os jogadores conectados com informações detalhadas
 app.get('/api/players', (req, res) => {
+  const allPlayers = getAllPlayers();
+  
+  const hostCount = allPlayers.filter(p => p.profile === 'host').length;
+  const playerCount = allPlayers.filter(p => p.profile === 'player').length;
+  const totalScore = allPlayers.reduce((sum, p) => sum + p.score, 0);
+  
   res.json({
-    count: playersStore.size,
-    players: getAllPlayers()
+    timestamp: new Date().toISOString(),
+    summary: {
+      totalConnected: allPlayers.length,
+      hosts: hostCount,
+      players: playerCount,
+      totalScore: totalScore,
+      avgScore: allPlayers.length > 0 ? Math.round(totalScore / allPlayers.length) : 0
+    },
+    players: allPlayers.map(p => ({
+      socketId: p.socketId,
+      name: p.name,
+      score: p.score,
+      profile: p.profile,
+      joinedAt: p.name ? new Date().toISOString() : null
+    }))
   });
 });
 
