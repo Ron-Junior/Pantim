@@ -3,39 +3,10 @@ import { createServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import cors from 'cors';
 import os from 'os';
-import fs from 'fs';
-import path from 'path';
 
-interface Player {
-  socketId: string;
-  name: string;
-  score: number;
-  profile: 'host' | 'player';
-  isLeader?: boolean;
-}
-
-enum GameStatus {
-  WAITING = 'WAITING',
-  LEADER_SELECTION = 'LEADER_SELECTION',
-  WRITING = 'WRITING',
-  VOTING = 'VOTING',
-  RESULTS = 'RESULTS'
-}
-
-interface GameState {
-  status: GameStatus;
-  currentWordId?: string;
-  currentWord?: string;
-  leaderSocketId?: string;
-  leaderName?: string;
-  roomCode?: string;
-}
-
-interface GameRoom {
-  roomCode: string;
-  gameState: GameState;
-  players: string[];
-}
+import { loadWords, getAllWords, getWordCount, getRandomWords, searchWords } from './services';
+import { registerGameEvents, registerHostEvents } from './events';
+import { WordsData, Word } from './types/game.types';
 
 const app = express();
 const httpServer = createServer(app);
@@ -46,116 +17,45 @@ const io = new SocketIOServer(httpServer, {
   }
 });
 
-const playersStore: Map<string, Player> = new Map();
-
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 
-function getLocalIPv4() {
-    const networkInterfaces = os.networkInterfaces();
+function getLocalIPv4(): string {
+  const networkInterfaces = os.networkInterfaces();
 
-    if (!networkInterfaces['Wi-Fi']) {
-        return 'Interface Wi-Fi não encontrada';
+  if (!networkInterfaces['Wi-Fi']) {
+    return 'Interface Wi-Fi não encontrada';
+  }
+
+  for (const addr of networkInterfaces['Wi-Fi']) {
+    if (addr.family === 'IPv4') {
+      return addr.address;
     }
+  }
 
-    for (const addr of networkInterfaces['Wi-Fi']) {
-        if (addr.family === 'IPv4') {
-            return addr.address;
-        }
-    }
-
-    return 'IPv4 não encontrado';
+  return 'IPv4 não encontrado';
 }
 
-// Exibe o IPv4 no console
-const localIPv4 = getLocalIPv4();
-console.log(`Endereço IPv4 local: ${localIPv4}`);
-
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Server info with dynamic IP
 app.get('/api/server-info', (req, res) => {
   res.json({
     ip: getLocalIPv4(),
     port: PORT,
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
 });
 
-// Carregar palavras do arquivo JSON
-interface Word {
-  word: string;
-  meaning: string;
-}
-
-interface WordsData {
-  words: Word[];
-}
-
-let wordsData: WordsData = { words: [] };
-
-const gameRooms: Map<string, GameRoom> = new Map();
-let currentGameState: GameState = {
-  status: GameStatus.WAITING
-};
-
-function loadWords(): void {
-  try {
-    const filePath = path.join(process.cwd(), 'src', 'words.json');
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    wordsData = JSON.parse(fileContent);
-    console.log(`[Words] Carregadas ${wordsData.words.length} palavras`);
-  } catch (error) {
-    console.error('[Words] Erro ao carregar palavras:', error);
-    wordsData = { words: [] };
-  }
-}
-
-loadWords();
-
-function findWordById(wordId: string): Word | undefined {
-  const index = parseInt(wordId.replace('word-', ''));
-  if (!isNaN(index) && index >= 0 && index < wordsData.words.length) {
-    return wordsData.words[index];
-  }
-  return wordsData.words.find(w => w.word.toLowerCase() === wordId.toLowerCase());
-}
-
-function findWordByText(wordText: string): Word | undefined {
-  return wordsData.words.find(w => w.word.toLowerCase() === wordText.toLowerCase());
-}
-
-function updateGameStatus(newStatus: GameStatus): void {
-  currentGameState.status = newStatus;
-  console.log(`[Game] Status atualizado para: ${newStatus}`);
-}
-
-function getRoomSockets(io: SocketIOServer, roomCode: string): Socket[] {
-  const room = io.sockets.adapter.rooms.get(roomCode);
-  if (!room) return [];
-  return Array.from(room).map(socketId => io.sockets.sockets.get(socketId)).filter(Boolean) as Socket[];
-}
-
-// Função para sortear palavras aleatórias
-function getRandomWords(count: number): Word[] {
-  const shuffled = [...wordsData.words].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
-}
-
-// Rota: Endpoint único para /api/words com query strings
 app.get('/api/words', (req, res) => {
-  // Modo 1: Modo random - retorna palavras aleatórias
   const random = req.query.random as string;
   if (random !== undefined) {
     const count = parseInt(random) || 3;
-    const randomWords = getRandomWords(Math.min(count, wordsData.words.length));
+    const randomWords = getRandomWords(Math.min(count, getWordCount()));
     return res.json({
       mode: 'random',
       words: randomWords,
@@ -164,32 +64,29 @@ app.get('/api/words', (req, res) => {
     });
   }
 
-  // Modo 2: Modo search - pesquisa por palavra ou significado
   const search = (req.query.search as string || '').toLowerCase().trim();
   if (search) {
-    const results = wordsData.words.filter(item => 
-      item.word.toLowerCase().includes(search) || 
-      item.meaning.toLowerCase().includes(search)
-    );
+    const { results, hasMore } = searchWords(search);
     return res.json({
       mode: 'search',
       query: search,
       count: results.length,
       results,
+      hasMore,
       timestamp: new Date().toISOString()
     });
   }
 
-  // Modo 3: Modo paginado (padrão) - lista com paginação
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 20;
-  
-  const totalItems = wordsData.words.length;
+
+  const allWords = getAllWords();
+  const totalItems = allWords.length;
   const totalPages = Math.ceil(totalItems / limit);
   const startIndex = (page - 1) * limit;
   const endIndex = startIndex + limit;
-  const paginatedWords = wordsData.words.slice(startIndex, endIndex);
-  
+  const paginatedWords = allWords.slice(startIndex, endIndex);
+
   res.json({
     mode: 'paginated',
     data: paginatedWords,
@@ -205,14 +102,14 @@ app.get('/api/words', (req, res) => {
   });
 });
 
-// API: Retorna todos os jogadores conectados com informações detalhadas
 app.get('/api/players', (req, res) => {
+  const { getAllPlayers } = require('./services');
   const allPlayers = getAllPlayers();
-  
-  const hostCount = allPlayers.filter(p => p.profile === 'host').length;
-  const playerCount = allPlayers.filter(p => p.profile === 'player').length;
-  const totalScore = allPlayers.reduce((sum, p) => sum + p.score, 0);
-  
+
+  const hostCount = allPlayers.filter((p: { profile: string }) => p.profile === 'host').length;
+  const playerCount = allPlayers.filter((p: { profile: string }) => p.profile === 'player').length;
+  const totalScore = allPlayers.reduce((sum: number, p: { score: number }) => sum + p.score, 0);
+
   res.json({
     timestamp: new Date().toISOString(),
     summary: {
@@ -222,7 +119,7 @@ app.get('/api/players', (req, res) => {
       totalScore: totalScore,
       avgScore: allPlayers.length > 0 ? Math.round(totalScore / allPlayers.length) : 0
     },
-    players: allPlayers.map(p => ({
+    players: allPlayers.map((p: { socketId: string; name: string; score: number; profile: string }) => ({
       socketId: p.socketId,
       name: p.name,
       score: p.score,
@@ -232,7 +129,6 @@ app.get('/api/players', (req, res) => {
   });
 });
 
-// Playground route
 app.get('/playground', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="pt-BR">
@@ -266,7 +162,7 @@ app.get('/playground', (req, res) => {
   <div class="container">
     <h1>🎮 Pantim Socket.io Playground</h1>
     <p>Status: <span id="status">Desconectado</span></p>
-    
+
     <div class="section">
       <h2>Identificação</h2>
       <input type="text" id="playerName" placeholder="Nome do jogador" value="TestPlayer">
@@ -324,7 +220,7 @@ app.get('/playground', (req, res) => {
     function connect() {
       if (socket?.connected) return;
       socket = io();
-      
+
       socket.on('connect', () => {
         log('Conectado: ' + socket.id, 'log-join');
         statusEl.textContent = 'Conectado (' + socket.id + ')';
@@ -364,14 +260,13 @@ app.get('/playground', (req, res) => {
         playersListEl.textContent = 'Nenhum jogador';
         return;
       }
-      playersListEl.innerHTML = players.map(p => 
+      playersListEl.innerHTML = players.map(p =>
         '<span class="player">' + p.name + ' <span class="score">[' + p.score + ']</span> (' + p.profile + ')</span>'
       ).join('');
-      
-      // Populate dropdown
+
       const select = document.getElementById('playerSelect');
       const currentVal = select.value;
-      select.innerHTML = '<option value="">Selecione um jogador</option>' + 
+      select.innerHTML = '<option value="">Selecione um jogador</option>' +
         players.map(p => '<option value="' + p.socketId + '">' + p.name + ' [' + p.score + ']</option>').join('');
       if (currentVal && players.find(p => p.socketId === currentVal)) {
         select.value = currentVal;
@@ -424,76 +319,17 @@ app.get('/playground', (req, res) => {
 </html>`);
 });
 
-function registerPlayer(socketId: string, name: string, profile: 'host' | 'player'): Player {
-  const player: Player = {
-    socketId,
-    name: name || `Jogador ${playersStore.size + 1}`,
-    score: 0,
-    profile
-  };
-  playersStore.set(socketId, player);
-  console.log(`[PlayersStore] Jogador registrado: ${player.name} (${socketId}) - Pontuação: ${player.score}`);
-  return player;
-}
+const localIPv4 = getLocalIPv4();
+console.log(`Endereço IPv4 local: ${localIPv4}`);
 
-function removePlayer(socketId: string): void {
-  const player = playersStore.get(socketId);
-  if (player) {
-    playersStore.delete(socketId);
-    console.log(`[PlayersStore] Jogador removido: ${player.name} (${socketId})`);
-  }
-}
+loadWords();
 
-function getPlayer(socketId: string): Player | undefined {
-  return playersStore.get(socketId);
-}
-
-function getAllPlayers(): Player[] {
-  return Array.from(playersStore.values());
-}
-
-function updatePlayerScore(socketId: string, score: number): void {
-  const player = playersStore.get(socketId);
-  if (player) {
-    player.score = score;
-    console.log(`[PlayersStore] Pontuação atualizada: ${player.name} -> ${score}`);
-  }
-}
-
-// Socket.io eventos
 io.on('connection', (socket: Socket) => {
   console.log(`[Conexão] Novo cliente conectado: ${socket.id}`);
 
-  // Evento: Cliente identificando seu perfil (Host ou Player)
-  socket.on('identify', (data: { profile: 'host' | 'player'; playerId?: string; playerName?: string }) => {
-    console.log(`[Identificação] ${socket.id} - Perfil: ${data.profile}`);
-    socket.join(data.profile);
-    
-    const player = registerPlayer(socket.id, data.playerName || '', data.profile);
-    
-    io.emit('playerJoined', {
-      socketId: socket.id,
-      profile: data.profile,
-      playerName: player.name,
-      timestamp: new Date().toISOString()
-    });
+  registerGameEvents(io, socket);
+  registerHostEvents(io, socket);
 
-    io.emit('playersList', getAllPlayers());
-  });
-
-  // Evento: Atualizar pontuação
-  socket.on('updateScore', (data: { socketId?: string; score: number }) => {
-    const targetId = data.socketId || socket.id;
-    updatePlayerScore(targetId, data.score);
-    io.emit('playersList', getAllPlayers());
-  });
-
-  // Evento: Listar jogadores
-  socket.on('getPlayers', () => {
-    socket.emit('playersList', getAllPlayers());
-  });
-
-  // Evento: Mensagem genérica
   socket.on('message', (data) => {
     console.log(`[Mensagem] De ${socket.id}:`, data);
     io.emit('message', {
@@ -502,157 +338,8 @@ io.on('connection', (socket: Socket) => {
       timestamp: new Date().toISOString()
     });
   });
-
-  // Evento: Get initial words
-  socket.on('getInitialWords', (data: { limit: number; offset: number }) => {
-    const limit = data?.limit || 20;
-    const offset = data?.offset || 0;
-    const paginatedWords = wordsData.words.slice(offset, offset + limit).map((w, i) => ({
-      id: `word-${offset + i}`,
-      text: w.word,
-      meaning: w.meaning
-    }));
-    socket.emit('initialWords', {
-      words: paginatedWords,
-      hasMore: offset + limit < wordsData.words.length
-    });
-  });
-
-  // Evento: Get word meaning by text
-  socket.on('getWordMeaning', (data: { word: string }) => {
-    const word = wordsData.words.find(w => w.word === data.word);
-    if (word) {
-      socket.emit('wordMeaning', { word: word.word, meaning: word.meaning });
-    }
-  });
-
-  // Evento: Request 5 suggestions
-  socket.on('requestSuggestions', (data: { count: number }) => {
-    const count = data?.count || 5;
-    const suggestions = getRandomWords(count).map((w, i) => ({
-      id: `suggestion-${i}`,
-      text: w.word,
-      meaning: w.meaning
-    }));
-    socket.emit('wordSuggestions', suggestions);
-  });
-
-  // Evento: Search words
-  socket.on('searchWords', (data: { query: string; limit: number; offset: number }) => {
-    const query = (data?.query || '').toLowerCase().trim();
-    const limit = data?.limit || 20;
-    const offset = data?.offset || 0;
-    
-    const results = wordsData.words.filter(w => 
-      w.word.toLowerCase().includes(query) || 
-      w.meaning.toLowerCase().includes(query)
-    );
-    
-    const paginatedResults = results.slice(offset, offset + limit).map((w, i) => ({
-      id: `search-${offset + i}`,
-      text: w.word,
-      meaning: w.meaning
-    }));
-    
-    socket.emit('wordSearchResults', {
-      words: paginatedResults,
-      hasMore: offset + limit < results.length
-    });
-  });
-
-  // Evento: Iniciar jogo (host)
-  socket.on('startGame', () => {
-    const player = playersStore.get(socket.id);
-    if (player && player.profile === 'host') {
-      console.log(`[Jogo] Partida iniciada pelo host`);
-      io.emit('gameStarted', { timestamp: new Date().toISOString() });
-      io.to('player').emit('startLeaderSelection');
-    }
-  });
-
-  // Evento: Iniciar rodada (leader seleciona palavra)
-  socket.on('startRound', (data: { word: string; meaning: string }) => {
-    const player = playersStore.get(socket.id);
-    if (player) {
-      console.log(`[Jogo] Rodada iniciada com palavra: ${data.word}`);
-      io.emit('roundStarted', { 
-        word: data.word, 
-        meaning: data.meaning,
-        leaderId: socket.id,
-        leaderName: player.name,
-        timestamp: new Date().toISOString() 
-      });
-    }
-  });
-
-  // Evento: Líder escolhe palavra (CHOOSE_WORD)
-  socket.on('CHOOSE_WORD', (data: { wordId: string; wordText: string }) => {
-    const player = playersStore.get(socket.id);
-    if (!player) {
-      socket.emit('error', { message: 'Jogador não encontrado' });
-      return;
-    }
-
-    if (player.profile !== 'host') {
-      socket.emit('error', { message: 'Apenas o líder pode escolher palavras' });
-      return;
-    }
-
-    const word = findWordById(data.wordId) || findWordByText(data.wordText);
-    if (!word) {
-      socket.emit('error', { message: 'Palavra não encontrada' });
-      return;
-    }
-
-    currentGameState = {
-      status: GameStatus.WRITING,
-      currentWord: word.word,
-      leaderSocketId: socket.id,
-      leaderName: player.name
-    };
-
-    console.log(`[Game] Palavra "${word.word}" enviada para a sala. Status: ${GameStatus.WRITING}`);
-
-    // Envia confirmação para o líder (sem a palavra - apenas aguardando)
-    socket.emit('LEADER_CONFIRMED', {
-      status: 'Aguardando definições...',
-      message: 'Sua palavra foi confirmada. Aguarde os outros jogadores enviarem suas definições.',
-      timestamp: new Date().toISOString()
-    });
-
-    // Envia a palavra apenas para os jogadores (não para o líder)
-    socket.to('player').emit('START_WRITING', {
-      word: word.word,
-      leaderName: player.name,
-      timestamp: new Date().toISOString()
-    });
-
-    // Notifica todos sobre a mudança de status
-    io.emit('GAME_STATUS_CHANGED', {
-      status: GameStatus.WRITING,
-      leaderName: player.name,
-      timestamp: new Date().toISOString()
-    });
-  });
-
-  // Evento: Desconexão
-  socket.on('disconnect', () => {
-    console.log(`[Desconexão] Cliente desconectado: ${socket.id}`);
-    removePlayer(socket.id);
-    io.emit('playerLeft', {
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
-    io.emit('playersList', getAllPlayers());
-  });
-
-  // Evento: Tratamento de erro
-  socket.on('error', (error) => {
-    console.error(`[Erro] Socket ${socket.id}:`, error);
-  });
 });
 
-// Iniciar servidor
 httpServer.listen(
   { port: PORT as number, host: HOST },
   () => {
@@ -666,7 +353,6 @@ httpServer.listen(
   }
 );
 
-// Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n[Shutdown] Encerrando servidor...');
   httpServer.close(() => {
