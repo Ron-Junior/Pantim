@@ -6,6 +6,7 @@ import { showToast } from '@/components/Toast';
 interface Word {
   id: string;
   text: string;
+  meaning?: string;
 }
 
 const LeaderSelectionPage: Component = () => {
@@ -19,6 +20,7 @@ const LeaderSelectionPage: Component = () => {
   const [page, setPage] = createSignal(1);
   const [selectedWord, setSelectedWord] = createSignal<Word | null>(null);
   const [isSearching, setIsSearching] = createSignal(false);
+  const [isStartingRound, setIsStartingRound] = createSignal(false);
 
   const WORDS_PER_PAGE = 20;
   const PAGE_SIZE = 20;
@@ -93,6 +95,11 @@ const LeaderSelectionPage: Component = () => {
       setIsLoadingMore(false);
     });
 
+    newSocket.on('roundStarted', (data: { word: string; meaning: string; leaderId: string; leaderName: string }) => {
+      console.log('roundStarted received:', data);
+      showToast(`Rodada iniciada! Palavra: ${data.word}`, 'success');
+    });
+
     newSocket.on('error', (error: string) => {
       showToast(error, 'error');
       setIsLoadingSuggestions(false);
@@ -130,6 +137,15 @@ const LeaderSelectionPage: Component = () => {
   const handleWordClick = (word: Word) => {
     setSelectedWord(word);
     showToast(`Palavra "${word.text}" selecionada!`, 'success');
+  };
+
+  const startRound = () => {
+    const word = selectedWord();
+    const s = socket();
+    if (!s || !word) return;
+
+    setIsStartingRound(true);
+    s.emit('startRound', { word: word.text, meaning: word.meaning || '' });
   };
 
   const loadMore = () => {
@@ -267,9 +283,34 @@ const LeaderSelectionPage: Component = () => {
 
         <Show when={selectedWord()}>
           <div class="mt-6 p-4 bg-primary-500/20 border border-primary-500 rounded-2xl">
-            <p class="text-primary-300 text-center font-semibold">
+            <p class="text-primary-300 text-center font-semibold text-lg">
               Palavra selecionada: {selectedWord()?.text}
             </p>
+            <Show when={selectedWord()?.meaning}>
+              <div class="mt-3 p-3 bg-dark-700/50 rounded-xl">
+                <p class="text-slate-300 text-sm">
+                  <span class="text-primary-400 font-semibold">Significado:</span> {selectedWord()?.meaning}
+                </p>
+              </div>
+            </Show>
+            <button
+              onClick={startRound}
+              disabled={isStartingRound()}
+              class="mt-4 w-full py-3 bg-accent-500 hover:bg-accent-600 disabled:bg-accent-500/50 text-white font-bold text-lg rounded-xl transition-colors shadow-lg shadow-accent-500/30 flex items-center justify-center gap-2"
+            >
+              <Show when={isStartingRound()} fallback={
+                <>
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Iniciar Rodada
+                </>
+              }>
+                <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Iniciando...
+              </Show>
+            </button>
           </div>
         </Show>
       </div>
