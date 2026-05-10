@@ -3,6 +3,8 @@ import { createServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import cors from 'cors';
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
 
 interface Player {
   socketId: string;
@@ -60,6 +62,94 @@ app.get('/api/server-info', (req, res) => {
     ip: getLocalIPv4(),
     port: PORT,
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Carregar palavras do arquivo JSON
+interface Word {
+  word: string;
+  meaning: string;
+}
+
+interface WordsData {
+  words: Word[];
+}
+
+let wordsData: WordsData = { words: [] };
+
+function loadWords(): void {
+  try {
+    const filePath = path.join(process.cwd(), 'src', 'words.json');
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    wordsData = JSON.parse(fileContent);
+    console.log(`[Words] Carregadas ${wordsData.words.length} palavras`);
+  } catch (error) {
+    console.error('[Words] Erro ao carregar palavras:', error);
+    wordsData = { words: [] };
+  }
+}
+
+loadWords();
+
+// Função para sortear palavras aleatórias
+function getRandomWords(count: number): Word[] {
+  const shuffled = [...wordsData.words].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+// Rota: Endpoint único para /api/words com query strings
+app.get('/api/words', (req, res) => {
+  // Modo 1: Modo random - retorna palavras aleatórias
+  const random = req.query.random as string;
+  if (random !== undefined) {
+    const count = parseInt(random) || 3;
+    const randomWords = getRandomWords(Math.min(count, wordsData.words.length));
+    return res.json({
+      mode: 'random',
+      words: randomWords,
+      count: randomWords.length,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Modo 2: Modo search - pesquisa por palavra ou significado
+  const search = (req.query.search as string || '').toLowerCase().trim();
+  if (search) {
+    const results = wordsData.words.filter(item => 
+      item.word.toLowerCase().includes(search) || 
+      item.meaning.toLowerCase().includes(search)
+    );
+    return res.json({
+      mode: 'search',
+      query: search,
+      count: results.length,
+      results,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Modo 3: Modo paginado (padrão) - lista com paginação
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  
+  const totalItems = wordsData.words.length;
+  const totalPages = Math.ceil(totalItems / limit);
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  const paginatedWords = wordsData.words.slice(startIndex, endIndex);
+  
+  res.json({
+    mode: 'paginated',
+    data: paginatedWords,
+    pagination: {
+      page,
+      limit,
+      totalItems,
+      totalPages,
+      hasMore: page < totalPages,
+      hasPrevious: page > 1
+    },
+    timestamp: new Date().toISOString()
   });
 });
 
