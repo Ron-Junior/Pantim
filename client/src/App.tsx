@@ -3,6 +3,7 @@ import { Router, Route } from '@solidjs/router';
 import QRCodePage from './pages/QRCodePage';
 import PlayerLoginPage from './pages/PlayerLoginPage';
 import LeaderSelectionPage from './pages/LeaderSelectionPage';
+import LobbyPage from './pages/LobbyPage';
 import { ToastContainer } from './components/Toast';
 
 const App: Component = () => {
@@ -11,6 +12,7 @@ const App: Component = () => {
       <Router>
         <Route path="/" component={QRCodePage} />
         <Route path="/player" component={PlayerLoginPage} />
+        <Route path="/lobby" component={LobbyPage} />
         <Route path="/leader" component={LeaderSelectionPage} />
       </Router>
       <ToastContainer />
