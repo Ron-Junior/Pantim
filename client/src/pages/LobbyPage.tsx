@@ -20,7 +20,9 @@ const LobbyPage: Component = () => {
   const [isReconnecting, setIsReconnecting] = createSignal(false);
   const [isConnected, setIsConnected] = createSignal(false);
 
-  const playerName = searchParams.name || '';
+  const playerName = Array.isArray(searchParams.name)
+    ? searchParams.name[0] || ''
+    : searchParams.name || '';
 
   const connectToServer = () => {
     const config = getServerConfig();
@@ -50,6 +52,10 @@ const LobbyPage: Component = () => {
 
     newSocket.on('startLeaderSelection', () => {
       navigate('/leader');
+    });
+
+    newSocket.on('START_WRITING', (data: { word: string; leaderName: string }) => {
+      navigate(`/definition?word=${encodeURIComponent(data.word)}&leader=${encodeURIComponent(data.leaderName)}`);
     });
 
     setSocket(newSocket);
@@ -94,6 +100,10 @@ const LobbyPage: Component = () => {
 
         tempSocket.on('startLeaderSelection', () => {
           navigate('/leader');
+        });
+
+        tempSocket.on('START_WRITING', (data: { word: string; leaderName: string }) => {
+          navigate(`/definition?word=${encodeURIComponent(data.word)}&leader=${encodeURIComponent(data.leaderName)}`);
         });
       });
 

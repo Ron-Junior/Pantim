@@ -5,6 +5,7 @@ let currentGameState: GameState = {
 };
 
 const gameRooms: Map<string, GameRoom> = new Map();
+const definitions: Map<string, string> = new Map();
 
 export function getGameState(): GameState {
   return currentGameState;
@@ -58,4 +59,24 @@ export function removePlayerFromRoom(roomCode: string, socketId: string): void {
   if (room) {
     room.players = room.players.filter((id) => id !== socketId);
   }
+}
+
+export function getCurrentGameState(): GameState {
+  return currentGameState;
+}
+
+export function storeDefinition(socketId: string, definition: string): void {
+  definitions.set(socketId, definition);
+}
+
+export function getDefinition(socketId: string): string | undefined {
+  return definitions.get(socketId);
+}
+
+export function getAllDefinitions(): Map<string, string> {
+  return definitions;
+}
+
+export function clearDefinitions(): void {
+  definitions.clear();
 }

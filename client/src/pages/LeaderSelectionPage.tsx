@@ -1,4 +1,5 @@
 import { Component, createSignal, createEffect, onCleanup, For, Show, on } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { io, Socket } from 'socket.io-client';
 import { getServerConfig } from '@/lib/server';
 import { showToast } from '@/components/Toast';
@@ -10,6 +11,7 @@ interface Word {
 }
 
 const LeaderSelectionPage: Component = () => {
+  const navigate = useNavigate();
   const [socket, setSocket] = createSignal<Socket | null>(null);
   const [words, setWords] = createSignal<Word[]>([]);
   const [searchQuery, setSearchQuery] = createSignal('');
@@ -98,6 +100,11 @@ const LeaderSelectionPage: Component = () => {
     newSocket.on('roundStarted', (data: { word: string; meaning: string; leaderId: string; leaderName: string }) => {
       console.log('roundStarted received:', data);
       showToast(`Rodada iniciada! Palavra: ${data.word}`, 'success');
+    });
+
+    newSocket.on('START_WRITING', (data: { word: string; leaderName: string }) => {
+      showToast(`Rodada iniciada! Palavra: ${data.word}`, 'success');
+      navigate(`/definition?word=${encodeURIComponent(data.word)}&leader=${encodeURIComponent(data.leaderName)}&isLeader=true`);
     });
 
     newSocket.on('error', (error: string) => {

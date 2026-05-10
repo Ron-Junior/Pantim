@@ -2,6 +2,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { handleIdentify, handleUpdateScore, handleGetPlayers, handleDisconnect } from '../handlers/player.handler';
 import { handleGetInitialWords, handleGetWordMeaning, handleRequestSuggestions, handleSearchWords } from '../handlers/word.handler';
 import { handleChooseWord } from '../handlers/game.handler';
+import { handleSubmitDefinition } from '../handlers/definition.handler';
 
 export function registerGameEvents(io: SocketIOServer, socket: Socket): void {
   handleIdentify(io, socket, { profile: 'host', playerName: '' });
@@ -20,6 +21,8 @@ export function registerGameEvents(io: SocketIOServer, socket: Socket): void {
   socket.on('searchWords', (data) => handleSearchWords(io, socket, data));
 
   socket.on('CHOOSE_WORD', (data) => handleChooseWord(io, socket, data));
+
+  socket.on('SUBMIT_DEFINITION', (data) => handleSubmitDefinition(io, socket, data));
 
   socket.on('disconnect', () => handleDisconnect(io, socket));
 
