@@ -6,7 +6,6 @@ import { io } from 'socket.io-client';
 const QRCodePage: Component = () => {
   const [qrCodeDataURL, setQRCodeDataURL] = createSignal<string>('');
   const [serverIP, setServerIP] = createSignal<string>('');
-  const [serverPort, setServerPort] = createSignal<number>(3000);
   const [isLoading, setIsLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [connectedPlayers, setConnectedPlayers] = createSignal<string[]>([]);
@@ -14,10 +13,9 @@ const QRCodePage: Component = () => {
   onMount(async () => {
     const serverInfo = await getServerInfo();
     setServerIP(serverInfo.ip);
-    setServerPort(serverInfo.port);
 
     try {
-      const joinURL = getPlayerJoinURL(serverInfo.ip, serverInfo.port);
+      const joinURL = getPlayerJoinURL(serverInfo.ip);
       const dataURL = await generateQRCodeDataURL(joinURL);
       setQRCodeDataURL(dataURL);
       setIsLoading(false);
@@ -26,7 +24,7 @@ const QRCodePage: Component = () => {
       setIsLoading(false);
     }
 
-    const socket = io(`${window.location.protocol}//${serverInfo.ip}:${serverInfo.port}`, {
+    const socket = io(`${window.location.protocol}//${serverInfo.ip}:3000`, {
       transports: ['websocket', 'polling'],
     });
 
@@ -81,7 +79,7 @@ const QRCodePage: Component = () => {
 
       <div class="text-center">
         <p class="text-3xl font-mono text-accent-400 mb-2">
-          {serverIP()}:{serverPort()}
+          {serverIP()}:3001
         </p>
         <p class="text-slate-500 text-sm">
           {connectedPlayers().length} jogador(es) conectado(s)

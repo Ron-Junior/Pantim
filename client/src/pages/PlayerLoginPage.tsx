@@ -1,7 +1,7 @@
 import { Component, createSignal } from 'solid-js';
 import { io } from 'socket.io-client';
 import { getServerConfig } from '@/lib/server';
-import { UserProfile } from '../../shared/types';
+import { UserProfile } from '@shared/types';
 
 interface JoinGamePayload {
   profile: UserProfile;

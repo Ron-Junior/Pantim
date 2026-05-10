@@ -18,6 +18,6 @@ export async function generateQRCodeDataURL(text: string): Promise<string> {
   }
 }
 
-export function getPlayerJoinURL(serverIP: string, serverPort: number): string {
-  return `http://${serverIP}:${serverPort}/player`;
+export function getPlayerJoinURL(serverIP: string): string {
+  return `http://${serverIP}:3001/player`;
 }
