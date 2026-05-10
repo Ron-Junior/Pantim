@@ -19,23 +19,13 @@ const HOST = '0.0.0.0';
 function getLocalIPv4() {
     const networkInterfaces = os.networkInterfaces();
 
-    for (const addrs of Object.values(networkInterfaces)) {
-        if (addrs) {
-            for (const addr of addrs) {
-                if (addr.family === 'IPv4' && addr.address.startsWith('192.168.')) {
-                    return addr.address;
-                }
-            }
-        }
+    if (!networkInterfaces['Wi-Fi']) {
+        return 'Interface Wi-Fi não encontrada';
     }
 
-    for (const addrs of Object.values(networkInterfaces)) {
-        if (addrs) {
-            for (const addr of addrs) {
-                if (addr.family === 'IPv4' && !addr.address.startsWith('127.')) {
-                    return addr.address;
-                }
-            }
+    for (const addr of networkInterfaces['Wi-Fi']) {
+        if (addr.family === 'IPv4') {
+            return addr.address;
         }
     }
 
