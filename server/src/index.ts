@@ -11,6 +11,30 @@ interface Player {
   name: string;
   score: number;
   profile: 'host' | 'player';
+  isLeader?: boolean;
+}
+
+enum GameStatus {
+  WAITING = 'WAITING',
+  LEADER_SELECTION = 'LEADER_SELECTION',
+  WRITING = 'WRITING',
+  VOTING = 'VOTING',
+  RESULTS = 'RESULTS'
+}
+
+interface GameState {
+  status: GameStatus;
+  currentWordId?: string;
+  currentWord?: string;
+  leaderSocketId?: string;
+  leaderName?: string;
+  roomCode?: string;
+}
+
+interface GameRoom {
+  roomCode: string;
+  gameState: GameState;
+  players: string[];
 }
 
 const app = express();
@@ -77,6 +101,11 @@ interface WordsData {
 
 let wordsData: WordsData = { words: [] };
 
+const gameRooms: Map<string, GameRoom> = new Map();
+let currentGameState: GameState = {
+  status: GameStatus.WAITING
+};
+
 function loadWords(): void {
   try {
     const filePath = path.join(process.cwd(), 'src', 'words.json');
@@ -90,6 +119,29 @@ function loadWords(): void {
 }
 
 loadWords();
+
+function findWordById(wordId: string): Word | undefined {
+  const index = parseInt(wordId.replace('word-', ''));
+  if (!isNaN(index) && index >= 0 && index < wordsData.words.length) {
+    return wordsData.words[index];
+  }
+  return wordsData.words.find(w => w.word.toLowerCase() === wordId.toLowerCase());
+}
+
+function findWordByText(wordText: string): Word | undefined {
+  return wordsData.words.find(w => w.word.toLowerCase() === wordText.toLowerCase());
+}
+
+function updateGameStatus(newStatus: GameStatus): void {
+  currentGameState.status = newStatus;
+  console.log(`[Game] Status atualizado para: ${newStatus}`);
+}
+
+function getRoomSockets(io: SocketIOServer, roomCode: string): Socket[] {
+  const room = io.sockets.adapter.rooms.get(roomCode);
+  if (!room) return [];
+  return Array.from(room).map(socketId => io.sockets.sockets.get(socketId)).filter(Boolean) as Socket[];
+}
 
 // Função para sortear palavras aleatórias
 function getRandomWords(count: number): Word[] {
@@ -531,6 +583,56 @@ io.on('connection', (socket: Socket) => {
         timestamp: new Date().toISOString() 
       });
     }
+  });
+
+  // Evento: Líder escolhe palavra (CHOOSE_WORD)
+  socket.on('CHOOSE_WORD', (data: { wordId: string; wordText: string }) => {
+    const player = playersStore.get(socket.id);
+    if (!player) {
+      socket.emit('error', { message: 'Jogador não encontrado' });
+      return;
+    }
+
+    if (player.profile !== 'host') {
+      socket.emit('error', { message: 'Apenas o líder pode escolher palavras' });
+      return;
+    }
+
+    const word = findWordById(data.wordId) || findWordByText(data.wordText);
+    if (!word) {
+      socket.emit('error', { message: 'Palavra não encontrada' });
+      return;
+    }
+
+    currentGameState = {
+      status: GameStatus.WRITING,
+      currentWord: word.word,
+      leaderSocketId: socket.id,
+      leaderName: player.name
+    };
+
+    console.log(`[Game] Palavra "${word.word}" enviada para a sala. Status: ${GameStatus.WRITING}`);
+
+    // Envia confirmação para o líder (sem a palavra - apenas aguardando)
+    socket.emit('LEADER_CONFIRMED', {
+      status: 'Aguardando definições...',
+      message: 'Sua palavra foi confirmada. Aguarde os outros jogadores enviarem suas definições.',
+      timestamp: new Date().toISOString()
+    });
+
+    // Envia a palavra apenas para os jogadores (não para o líder)
+    socket.to('player').emit('START_WRITING', {
+      word: word.word,
+      leaderName: player.name,
+      timestamp: new Date().toISOString()
+    });
+
+    // Notifica todos sobre a mudança de status
+    io.emit('GAME_STATUS_CHANGED', {
+      status: GameStatus.WRITING,
+      leaderName: player.name,
+      timestamp: new Date().toISOString()
+    });
   });
 
   // Evento: Desconexão
