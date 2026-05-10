@@ -1,0 +1,84 @@
+# Cursor Rules - Pantim
+
+## Tech Stack
+- **Backend**: Node.js + TypeScript + Socket.io
+- **Frontend**: SolidJS + Tailwind CSS
+- **Build**: Vite
+
+## Code Style
+
+### TypeScript
+- Strict mode enabled
+- No `any` types
+- Use interfaces for type definitions
+- Export types from dedicated `types/` directory
+
+### SolidJS Patterns
+```tsx
+// Store pattern for game state
+import { createStore } from 'solid-js/store';
+
+const [store, setStore] = createStore({
+  status: 'WAITING',
+  word: ''
+});
+
+// Use Show/For for conditional rendering
+<Show when={store.status === 'WRITING'}>
+  <DefinitionInput />
+</Show>
+```
+
+### Server Patterns
+```typescript
+// Event handler structure
+export function handleChooseWord(io: SocketIOServer, socket: Socket, data: Payload) {
+  // Validate player
+  const player = getPlayer(socket.id);
+  if (!player) return;
+
+  // Update state
+  updateGameStatus(GameStatus.WRITING);
+
+  // Emit to specific targets
+  socket.emit('LEADER_CONFIRMED', {...});
+  socket.to('player').emit('START_WRITING', {...});
+}
+```
+
+## File Organization
+
+### Server
+```
+src/
+├── types/          # Interfaces, enums
+├── services/       # Business logic
+├── handlers/       # Socket event handlers
+├── events/         # Event registration
+└── index.ts       # Entry point
+```
+
+### Client
+```
+src/
+├── lib/            # Utilities (socket, api)
+├── pages/          # Route pages
+├── components/     # Reusable components
+└── App.tsx         # Router
+```
+
+## Naming Conventions
+- Socket events: `SCREAMING_SNAKE_CASE`
+- Functions: `camelCase`
+- Types/Interfaces: `PascalCase`
+- CSS classes: `kebab-case` (Tailwind)
+
+## Anti-Cheat Rules
+- Never send `meaning` field to clients
+- Word payload: `{ word: string, leaderName: string }`
+- Server-side validation for all game actions
+
+## Testing
+- TypeScript validation: `npm run typecheck`
+- ESLint: `npm run lint`
+- Run both before marking task complete
