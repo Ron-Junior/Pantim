@@ -32,6 +32,10 @@ const DefinitionInput: Component<DefinitionInputProps> = (props) => {
       props.onSubmitted?.();
     });
 
+    newSocket.on('gameEnded', () => {
+      showToast('Partida finalizada pelo host!', 'info');
+    });
+
     newSocket.on('error', (error: string) => {
       showToast(error, 'error');
       setIsSubmitting(false);

@@ -16,9 +16,9 @@ const LobbyPage: Component = () => {
   const [searchParams] = useSearchParams();
   const [socket, setSocket] = createSignal<Socket | null>(null);
   const [connectedPlayers, setConnectedPlayers] = createSignal<Player[]>([]);
-  const [isInGame, setIsInGame] = createSignal(false);
   const [isReconnecting, setIsReconnecting] = createSignal(false);
   const [isConnected, setIsConnected] = createSignal(false);
+  let isInitialized = false;
 
   const playerName = Array.isArray(searchParams.name)
     ? searchParams.name[0] || ''
@@ -35,6 +35,7 @@ const LobbyPage: Component = () => {
       setIsConnected(true);
       setIsReconnecting(false);
       newSocket.emit('identify', { profile: 'player', playerName });
+      newSocket.emit('getPlayers');
     });
 
     newSocket.on('disconnect', () => {
@@ -43,19 +44,36 @@ const LobbyPage: Component = () => {
     });
 
     newSocket.on('playersList', (players: Player[]) => {
-      setConnectedPlayers(players);
+      setConnectedPlayers(players.filter((p: any) => p.name !== playerName));
+    });
+
+    newSocket.on('playerJoined', (data: { socketId: string; playerName: string }) => {
+      if (data.playerName !== playerName) {
+        setConnectedPlayers((prev) => {
+          if (prev.some((p) => p.id === data.socketId)) return prev;
+          return [...prev, { id: data.socketId, name: data.playerName }];
+        });
+      }
+    });
+
+    newSocket.on('playerLeft', (data: { socketId: string }) => {
+      setConnectedPlayers((prev) => prev.filter((p) => p.id !== data.socketId));
     });
 
     newSocket.on('gameStarted', () => {
-      setIsInGame(true);
     });
 
     newSocket.on('startLeaderSelection', () => {
       navigate('/leader');
     });
 
-    newSocket.on('START_WRITING', (data: { word: string; leaderName: string }) => {
-      navigate(`/definition?word=${encodeURIComponent(data.word)}&leader=${encodeURIComponent(data.leaderName)}`);
+    newSocket.on('endRound', () => {
+      navigate('/');
+    });
+
+    newSocket.on('gameEnded', () => {
+      showToast('Partida finalizada pelo host!', 'info');
+      navigate('/player');
     });
 
     setSocket(newSocket);
@@ -83,6 +101,7 @@ const LobbyPage: Component = () => {
         setIsReconnecting(false);
         setSocket(tempSocket);
         tempSocket.emit('identify', { profile: 'player', playerName });
+        tempSocket.emit('getPlayers');
         showToast('Reconectado com sucesso!', 'success');
 
         tempSocket.on('disconnect', () => {
@@ -91,19 +110,32 @@ const LobbyPage: Component = () => {
         });
 
         tempSocket.on('playersList', (players: Player[]) => {
-          setConnectedPlayers(players);
+          setConnectedPlayers(players.filter((p: any) => p.name !== playerName));
+        });
+
+        tempSocket.on('playerJoined', (data: { socketId: string; playerName: string }) => {
+          if (data.playerName !== playerName) {
+            setConnectedPlayers((prev) => {
+              if (prev.some((p) => p.id === data.socketId)) return prev;
+              return [...prev, { id: data.socketId, name: data.playerName }];
+            });
+          }
+        });
+
+        tempSocket.on('playerLeft', (data: { socketId: string }) => {
+          setConnectedPlayers((prev) => prev.filter((p) => p.id !== data.socketId));
         });
 
         tempSocket.on('gameStarted', () => {
-          setIsInGame(true);
         });
 
         tempSocket.on('startLeaderSelection', () => {
           navigate('/leader');
         });
 
-        tempSocket.on('START_WRITING', (data: { word: string; leaderName: string }) => {
-          navigate(`/definition?word=${encodeURIComponent(data.word)}&leader=${encodeURIComponent(data.leaderName)}`);
+        tempSocket.on('gameEnded', () => {
+          showToast('Partida finalizada pelo host!', 'info');
+          navigate('/player');
         });
       });
 
@@ -119,6 +151,9 @@ const LobbyPage: Component = () => {
       navigate('/player');
       return;
     }
+
+    if (isInitialized) return;
+    isInitialized = true;
 
     connectToServer();
 

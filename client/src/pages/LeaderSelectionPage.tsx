@@ -100,11 +100,16 @@ const LeaderSelectionPage: Component = () => {
     newSocket.on('roundStarted', (data: { word: string; meaning: string; leaderId: string; leaderName: string }) => {
       console.log('roundStarted received:', data);
       showToast(`Rodada iniciada! Palavra: ${data.word}`, 'success');
+      navigate(`/definition?word=${encodeURIComponent(data.word)}&leader=${encodeURIComponent(data.leaderName)}&isLeader=true`);
     });
 
     newSocket.on('START_WRITING', (data: { word: string; leaderName: string }) => {
       showToast(`Rodada iniciada! Palavra: ${data.word}`, 'success');
-      navigate(`/definition?word=${encodeURIComponent(data.word)}&leader=${encodeURIComponent(data.leaderName)}&isLeader=true`);
+    });
+
+    newSocket.on('gameEnded', () => {
+      showToast('Partida finalizada pelo host!', 'info');
+      navigate('/');
     });
 
     newSocket.on('error', (error: string) => {

@@ -58,3 +58,29 @@ export function handleDisconnect(
 
   console.log(`[Desconexão] ${playerName || socket.id} removido do jogo`);
 }
+
+export function handleEndGame(
+  io: SocketIOServer,
+  socket: Socket
+): void {
+  console.log(`[Jogo] Partida finalizada pelo host ${socket.id}`);
+
+  const players = getAllPlayers();
+  players.forEach(player => {
+    io.to(player.socketId).emit('gameEnded', {
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  io.emit('gameEnded', {
+    timestamp: new Date().toISOString()
+  });
+
+  players.forEach(player => {
+    removePlayer(player.socketId);
+  });
+
+  io.emit('playersList', getAllPlayers());
+
+  console.log(`[Jogo] Todos os jogadores desconectados e removidos`);
+}

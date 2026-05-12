@@ -1,5 +1,5 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import { handleIdentify, handleUpdateScore, handleGetPlayers, handleDisconnect } from '../handlers/player.handler';
+import { handleIdentify, handleUpdateScore, handleGetPlayers, handleDisconnect, handleEndGame } from '../handlers/player.handler';
 import { handleGetInitialWords, handleGetWordMeaning, handleRequestSuggestions, handleSearchWords } from '../handlers/word.handler';
 import { handleChooseWord } from '../handlers/game.handler';
 import { handleSubmitDefinition } from '../handlers/definition.handler';
@@ -7,6 +7,8 @@ import { handleSubmitDefinition } from '../handlers/definition.handler';
 export function registerGameEvents(io: SocketIOServer, socket: Socket): void {
   handleIdentify(io, socket, { profile: 'host', playerName: '' });
   socket.on('identify', (data) => handleIdentify(io, socket, data));
+
+  socket.on('endGame', () => handleEndGame(io, socket));
 
   socket.on('updateScore', (data) => handleUpdateScore(io, socket, data));
 
@@ -38,6 +40,11 @@ export function registerHostEvents(io: SocketIOServer, socket: Socket): void {
     io.to('player').emit('startLeaderSelection');
   });
 
+  socket.on('endGame', () => {
+    console.log(`[Jogo] Partida finalizada pelo host`);
+    io.emit('gameEnded', { timestamp: new Date().toISOString() });
+  });
+
   socket.on('startRound', (data: { word: string; meaning: string }) => {
     console.log(`[Jogo] Rodada iniciada com palavra: ${data.word}`);
     io.emit('roundStarted', {
@@ -45,6 +52,12 @@ export function registerHostEvents(io: SocketIOServer, socket: Socket): void {
       meaning: data.meaning,
       leaderId: socket.id,
       leaderName: socket.data.playerName,
+      timestamp: new Date().toISOString()
+    });
+
+    io.to('player').emit('START_WRITING', {
+      word: data.word,
+      leaderName: socket.data.playerName || 'Líder',
       timestamp: new Date().toISOString()
     });
   });
