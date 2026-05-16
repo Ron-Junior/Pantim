@@ -4,7 +4,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import cors from 'cors';
 import os from 'os';
 
-import { loadWords, getAllWords, getWordCount, getRandomWords, searchWords } from './services';
+import { loadWords, getAllWords, getWordCount, getRandomWords, searchWords, clearPlayers } from './services';
 import { registerGameEvents, registerHostEvents } from './events';
 import { WordsData, Word } from './types/game.types';
 
@@ -353,10 +353,14 @@ httpServer.listen(
   }
 );
 
-process.on('SIGINT', () => {
+const shutdown = () => {
   console.log('\n[Shutdown] Encerrando servidor...');
+  clearPlayers();
   httpServer.close(() => {
     console.log('✓ Servidor encerrado');
     process.exit(0);
   });
-});
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

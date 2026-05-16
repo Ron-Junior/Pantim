@@ -34,7 +34,6 @@ const LobbyPage: Component = () => {
     newSocket.on('connect', () => {
       setIsConnected(true);
       setIsReconnecting(false);
-      newSocket.emit('identify', { profile: 'player', playerName });
       newSocket.emit('getPlayers');
     });
 

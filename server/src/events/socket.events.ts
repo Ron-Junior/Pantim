@@ -5,7 +5,6 @@ import { handleChooseWord } from '../handlers/game.handler';
 import { handleSubmitDefinition } from '../handlers/definition.handler';
 
 export function registerGameEvents(io: SocketIOServer, socket: Socket): void {
-  handleIdentify(io, socket, { profile: 'host', playerName: '' });
   socket.on('identify', (data) => handleIdentify(io, socket, data));
 
   socket.on('endGame', () => handleEndGame(io, socket));

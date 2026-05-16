@@ -42,13 +42,15 @@ const PlayerLoginPage: Component = () => {
     const socket = io(`${config.host}:${config.port}`, {
       transports: ['websocket', 'polling'],
     });
+    
+    const payload: JoinGamePayload = {
+      profile: 'player',
+      playerName: name,
+    };
+
+    socket.emit('identify', payload);
 
     socket.on('connect', () => {
-      const payload: JoinGamePayload = {
-        profile: 'player',
-        playerName: name,
-      };
-      socket.emit('identify', payload);
       showToast('Conectado ao jogo!', 'success');
       navigate(`/lobby?name=${encodeURIComponent(name)}`);
     });

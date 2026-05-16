@@ -40,7 +40,6 @@ const QRCodePage: Component = () => {
     });
 
     socketRef.on('connect', () => {
-      socketRef!.emit('identify', { profile: 'host' });
       socketRef!.emit('getPlayers');
       showToast('Servidor conectado!', 'success');
     });

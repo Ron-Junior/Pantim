@@ -51,3 +51,8 @@ export function setPlayerAsLeader(socketId: string, isLeader: boolean): void {
     console.log(`[PlayersStore] ${player.name} é agora líder: ${isLeader}`);
   }
 }
+
+export function clearPlayers(): void {
+  playersStore.clear();
+  console.log('[PlayersStore] Limpo durante shutdown');
+}
